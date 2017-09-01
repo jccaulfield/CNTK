@@ -6,16 +6,14 @@ using System.Linq;
 namespace CNTK.CSTrainingExamples
 {
     /// <summary>
-    /// This class shows an example to do image classification using convolution network.
-    /// It also shows some strategies common in building image classification DNNs.
-    /// Those include batch normalization, residual network (so the class name)
-    /// The code follows closely with following CNTK Python tutorial:
+    /// This class shows how to do image classification using convolution network.
+    /// It follows closely this CNTK Python tutorial:
     /// https://github.com/Microsoft/CNTK/blob/master/Tutorials/CNTK_201B_CIFAR-10_ImageHandsOn.ipynb
     /// </summary>
     public class CifarResNetClassifier
     {
         /// <summary>
-        /// test execution folder is: CNTK/x64/BuildFolder
+        /// execution folder is: CNTK/x64/BuildFolder
         /// data folder is: CNTK/Examples/Image/DataSets
         /// </summary>
         public static string CifarDataFolder = "../../Examples/Image/DataSets/CIFAR-10";

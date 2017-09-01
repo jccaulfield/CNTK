@@ -9,10 +9,6 @@ tags:
   - weekly-e (build_sku == 'gpu') and (device == 'gpu') and (os == 'windows') and (flavor == 'release')
 
 testCases:
-    Validation run must be produce matching results:
-        patterns:
-            - Total Samples = {{integer,tolerance=10%}}
-            - Misclassify Count = {{integer,tolerance=40%}}
     Test run must be completed:
         patterns:
             - Train completes.
