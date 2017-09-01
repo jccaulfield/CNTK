@@ -14,7 +14,8 @@ if [ "$OS" == "Windows_NT" ]; then
     mkdir $TestDataDir
 
     # Copy and extract animal data to the test run directory
-    DataSourceDir=`cygpath -au $CNTK_EXTERNAL_TESTDATA_SOURCE_DIRECTORY`/Image/
+    DataSourceDir=`cygpath -au $CNTK_EXTERNAL_TESTDATA_SOURCE_DIRECTORY`/Image
+    echo cp -R $DataSourceDir/Animals $TestDataDir
     cp -R $DataSourceDir/Animals $TestDataDir || exit $?
     python extract_animal_data.py $TestDataDir/Animals/Animals.zip $TestDataDir
 

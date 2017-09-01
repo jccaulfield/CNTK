@@ -61,9 +61,6 @@
     <Compile Include="..\Common\MNISTClassifier.cs">
       <Link>MNISTClassifier.cs</Link>
     </Compile>
-    <Compile Include="..\Common\Sequential.cs">
-      <Link>Sequential.cs</Link>
-    </Compile>
     <Compile Include="..\Common\TestHelper.cs">
       <Link>TestHelper.cs</Link>
     </Compile>
