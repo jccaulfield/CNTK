@@ -220,7 +220,7 @@ def forward_backward(graph, features, blankTokenId, delayConstraint=-1, name='')
 
 @typemap
 def convolution(convolution_map, operand, strides=(1,), sharing=[True],
-                auto_padding=[True], max_temp_mem_size_in_samples=0, name=''):
+                auto_padding=[True], dilation=(1,), max_temp_mem_size_in_samples=0, name=''):
     '''
     Computes the convolution of ``convolution_map`` (typically a tensor of learnable parameters) with
     ``operand`` (commonly an image or output of a previous convolution/pooling operation).
@@ -263,6 +263,7 @@ def convolution(convolution_map, operand, strides=(1,), sharing=[True],
          pixels outside the area are assumed zero ("padded with zeroes"). Without padding, the kernels are only shifted over
          positions where all inputs to the kernel still fall inside the area. In this case, the output dimension will be less than
          the input dimension. The last value that lines up with the number of input channels must be false.
+        dilation (tuple, optional): the dilation value along each axis, default 1 mean no dilation.
         max_temp_mem_size_in_samples (int): maximum amount of auxiliary memory (in samples) that should be reserved to perform convolution
          operations. Some convolution engines (e.g. cuDNN and GEMM-based engines) can benefit from using workspace as it may improve
          performance. However, sometimes this may lead to higher memory utilization. Default is 0 which means the same as the input
@@ -274,12 +275,13 @@ def convolution(convolution_map, operand, strides=(1,), sharing=[True],
     from cntk.cntk_py import convolution
     operand = sanitize_input(operand)
     strides, sharing, auto_padding = sanitize_convolution_args(strides, sharing, auto_padding)
-    return convolution(convolution_map, operand, strides, sharing, auto_padding,
+    dilation = sanitize_shape(dilation)
+    return convolution(convolution_map, operand, strides, sharing, auto_padding, dilation,
                        max_temp_mem_size_in_samples, name)
 
 @typemap
 def convolution_transpose(convolution_map, operand, strides=(1,), sharing=[True],
-                          auto_padding=[True], output_shape=None, max_temp_mem_size_in_samples=0, name=''):
+                          auto_padding=[True], output_shape=None, dilation=(1,), max_temp_mem_size_in_samples=0, name=''):
     '''
     Computes the transposed convolution of ``convolution_map`` (typically a tensor of learnable parameters) with
     ``operand`` (commonly an image or output of a previous convolution/pooling operation).
@@ -324,6 +326,7 @@ def convolution_transpose(convolution_map, operand, strides=(1,), sharing=[True]
          positions where all inputs to the kernel still fall inside the area. In this case, the output dimension will be less than
          the input dimension. The last value that lines up with the number of input channels must be false.
         output_shape: user expected output shape after convolution transpose.
+        dilation (tuple, optional): the dilation value along each axis, default 1 mean no dilation.
         max_temp_mem_size_in_samples (int): maximum amount of auxiliary memory (in samples) that should be reserved to perform convolution
          operations. Some convolution engines (e.g. cuDNN and GEMM-based engines) can benefit from using workspace as it may improve
          performance. However, sometimes this may lead to higher memory utilization. Default is 0 which means the same as the input
@@ -338,8 +341,9 @@ def convolution_transpose(convolution_map, operand, strides=(1,), sharing=[True]
     if output_shape is None:
         output_shape = (0,)
     output_shape = sanitize_shape(output_shape)
+    dilation = sanitize_shape(dilation)
     return convolution_transpose(convolution_map, operand, strides, sharing, auto_padding,
-                                 output_shape, max_temp_mem_size_in_samples, name)
+                                 output_shape, dilation, max_temp_mem_size_in_samples, name)
 
 from cntk.cntk_py import PoolingType_Max, PoolingType_Average
 MAX_POOLING = PoolingType_Max
@@ -2109,9 +2113,9 @@ def slice(x, axis, begin_index, end_index, strides=None, name=''):
         axis (int or :class:`~cntk.axis.Axis`): axis along which ``begin_index`` and ``end_index``
          will be used. If it is of type int it will be used as a static axis.
         begin_index (int): the index along axis where the slicing starts
-        end_index (int): the index along axis where the slicing ends
-        name (str, optional): the name of the Function instance in the network
+        end_index (int): the index along axis where the slicing ends (exclusive)
         strides(int): step sizes when applying slice, negative value means in reverse order
+        name (str, optional): the name of the Function instance in the network
 
     See also:
         Indexing in NumPy: https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
@@ -2874,7 +2878,7 @@ def input(shape, dtype=default_override_or(np.float32), needs_gradient=False, is
     Args:
         shape (tuple or int): the shape of the input tensor
         dtype (np.float32 or np.float64): data type. Default is np.float32.
-        needs_gradients (bool, optional): whether to back-propagates to it or not. False by default.
+        needs_gradient (bool, optional): whether to back-propagates to it or not. False by default.
         is_sparse (bool, optional): whether the variable is sparse (`False` by default)
         dynamic_axes (list or tuple, default): a list of dynamic axis (e.g., batch axis, sequence axis)
         name (str, optional): the name of the Function instance in the network
@@ -2900,7 +2904,7 @@ def input_variable(shape, dtype=default_override_or(np.float32), needs_gradient=
     Args:
         shape (tuple or int): the shape of the input tensor
         dtype (np.float32 or np.float64): data type. Default is np.float32.
-        needs_gradients (bool, optional): whether to back-propagates to it or not. False by default.
+        needs_gradient (bool, optional): whether to back-propagates to it or not. False by default.
         is_sparse (bool, optional): whether the variable is sparse (`False` by default)
         dynamic_axes (list or tuple, default): a list of dynamic axis (e.g., batch axis, time axis)
         name (str, optional): the name of the Function instance in the network
