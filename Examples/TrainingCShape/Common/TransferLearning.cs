@@ -15,9 +15,14 @@ namespace CNTK.CSTrainingExamples
     public class TransferLearning
     {
         public static string CurrentFolder = "./";
-        public static string ExampleImageFoler = "../../Examples/Image";
 
-        private static string baseResnetModelFile = "PretrainedModels/ResNet_18.model";
+        /// <summary>
+        /// test execution folder is: CNTK/Tests/EndToEndTests/CNTKv2CSharp/ExampleTests/TransferLearningTest
+        /// data folder is: CNTK/Examples/Image
+        /// </summary>
+        public static string ExampleImageFoler = "../../Examples/Image/DataSets";
+        public static string BaseResnetModelFile = "../../Examples/Image/PretrainedModels/ResNet_18.model";
+
         private static string featureNodeName = "features";
         private static string lastHiddenNodeName = "z.x";
         private static int[] imageDims = new int[] { 224, 224, 3 };
@@ -32,7 +37,7 @@ namespace CNTK.CSTrainingExamples
         /// it only evaluates the model is it exists. </param>
         public static void TrainAndEvaluateWithFlowerData(DeviceDescriptor device, bool forceReTrain = false)
         {
-            string flowerFolder = Path.Combine(ExampleImageFoler, "DataSets/Flowers");
+            string flowerFolder = Path.Combine(ExampleImageFoler, "Flowers");
             string flowersTrainingMap = Path.Combine(flowerFolder, "1k_img_map.txt");
             string flowersValidationMap = Path.Combine(flowerFolder, "val_map.txt");
             int flowerModelNumClasses = 102;
@@ -54,12 +59,11 @@ namespace CNTK.CSTrainingExamples
             Variable imageInput, labelInput;
             Function trainingLoss, predictionError;
 
-            string baseModelFile = Path.Combine(ExampleImageFoler, baseResnetModelFile);
-            Function transferLearningModel = CreateTransferLearningModel(baseModelFile, featureNodeName,
+            Function transferLearningModel = CreateTransferLearningModel(BaseResnetModelFile, featureNodeName,
                 predictionNodeName, lastHiddenNodeName, flowerModelNumClasses, device,
                 out imageInput, out labelInput, out trainingLoss, out predictionError);
 
-            int maxEpochs = 100;
+            int numMinibatches = 100;
             int minibatchbSize = 50;
             float learningRatePerMinibatch = 0.2F;
             float momentumPerMinibatch = 0.9F;
@@ -76,7 +80,7 @@ namespace CNTK.CSTrainingExamples
             var trainer = Trainer.CreateTrainer(transferLearningModel, trainingLoss, predictionError, parameterLearners);
 
             int outputFrequencyInMinibatches = 1;
-            for (int epoch = 0; epoch < maxEpochs; ++epoch)
+            for (int minibatchCount = 0; minibatchCount < numMinibatches; ++minibatchCount)
             {
                 var minibatchData = minibatchSource.GetNextMinibatch((uint)minibatchbSize, device);
 
@@ -84,7 +88,7 @@ namespace CNTK.CSTrainingExamples
                 {
                     { imageInput, minibatchData[featureStreamInfo] },
                     { labelInput, minibatchData[labelStreamInfo] } }, device);
-                TestHelper.PrintTrainingProgress(trainer, epoch, outputFrequencyInMinibatches);
+                TestHelper.PrintTrainingProgress(trainer, minibatchCount, outputFrequencyInMinibatches);
             }
 
             transferLearningModel.Save(flowerModelFile);
@@ -106,7 +110,7 @@ namespace CNTK.CSTrainingExamples
         /// it only evaluates the model is it exists. </param>
         public static void TrainAndEvaluateWithAnimalData(DeviceDescriptor device, bool forceRetrain = false)
         {
-            string animalDataFolder = Path.Combine(ExampleImageFoler, "DataSets/Animals");
+            string animalDataFolder = Path.Combine(ExampleImageFoler, "Animals");
             string[] animals = new string[] { "Sheep", "Wolf" };
 
             string animalsModelFile = Path.Combine(CurrentFolder, "AnimalsTransferLearning.model");
@@ -125,12 +129,11 @@ namespace CNTK.CSTrainingExamples
             string predictionNodeName = "prediction";
             Variable imageInput, labelInput;
             Function trainingLoss, predictionError;
-            string baseModelFile = Path.Combine(ExampleImageFoler, baseResnetModelFile);
-            Function transferLearningModel = CreateTransferLearningModel(baseModelFile, featureNodeName, predictionNodeName,
+            Function transferLearningModel = CreateTransferLearningModel(BaseResnetModelFile, featureNodeName, predictionNodeName,
                 lastHiddenNodeName, animalModelNumClasses, device,
                 out imageInput, out labelInput, out trainingLoss, out predictionError);
 
-            int numEpochs = 5;
+            int numMinibatches = 5;
             float learningRatePerMinibatch = 0.2F;
             float learningmomentumPerMinibatch = 0.9F;
             float l2RegularizationWeight = 0.1F;
@@ -145,7 +148,7 @@ namespace CNTK.CSTrainingExamples
                     additionalLearningOptions)};
             var trainer = Trainer.CreateTrainer(transferLearningModel, trainingLoss, predictionError, parameterLearners);
 
-            for (int epoch = 0; epoch < numEpochs; ++epoch)
+            for (int minibatchCount = 0; minibatchCount < numMinibatches; ++minibatchCount)
             {
                 Value imageBatch, labelBatch;
                 int batchCount = 0, batchSize = 15;
@@ -155,7 +158,7 @@ namespace CNTK.CSTrainingExamples
                     trainer.TrainMinibatch(new Dictionary<Variable, Value>() {
                         { imageInput, imageBatch },
                         { labelInput, labelBatch } }, device);
-                    TestHelper.PrintTrainingProgress(trainer, epoch, 1);
+                    TestHelper.PrintTrainingProgress(trainer, minibatchCount, 1);
                 }
             }
             transferLearningModel.Save(animalsModelFile);

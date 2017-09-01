@@ -14,7 +14,14 @@ namespace CNTK.CSTrainingExamples
     /// </summary>
     public class CifarResNetClassifier
     {
+        /// <summary>
+        /// test execution folder is: CNTK/x64/BuildFolder
+        /// data folder is: CNTK/Examples/Image/DataSets
+        /// </summary>
         public static string CifarDataFolder = "../../Examples/Image/DataSets/CIFAR-10";
+
+        public static uint NumSweeps = 1;
+
         static readonly int[] imageDim = {32, 32, 3};
         static readonly int numClasses = 10;
 
@@ -32,9 +39,8 @@ namespace CNTK.CSTrainingExamples
                 return;
             }
 
-            uint maxSweeps = 5;
             var minibatchSource = CreateMinibatchSource(Path.Combine(CifarDataFolder, "train_map.txt"),
-                Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, maxSweeps);
+                Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, NumSweeps);
             var imageStreamInfo = minibatchSource.StreamInfo("features");
             var labelStreamInfo = minibatchSource.StreamInfo("labels");
 
@@ -44,7 +50,6 @@ namespace CNTK.CSTrainingExamples
             var imageInputName = "Images";
             var imageInput = CNTKLib.InputVariable(inputImageShape, imageStreamInfo.m_elementType, imageInputName);
             var classifierOutput = ResNetClassifier(imageInput, numOutputClasses, device, "classifierOutput");
-            TestHelper.PrintOutputDims(classifierOutput, "classifierOutput");
 
             var labelsInputName = "Labels";
             var labelsVar = CNTKLib.InputVariable(new int[] { numOutputClasses }, labelStreamInfo.m_elementType, labelsInputName);
@@ -60,7 +65,7 @@ namespace CNTK.CSTrainingExamples
             while (true)
             {
                 var minibatchData = minibatchSource.GetNextMinibatch(minibatchSize, device);
-                if (minibatchData == null || minibatchData.Count == 0)
+                if (minibatchData.empty())
                 {
                     break;
                 }
@@ -201,8 +206,6 @@ namespace CNTK.CSTrainingExamples
             int poolvStride = 1;
             var pool = CNTKLib.Pooling(rn3_3, PoolingType.Average,
                 new int[] { poolW, poolH, 1 }, new int[] { poolhStride, poolvStride, 1 });
-
-            TestHelper.PrintOutputDims(pool, "pool");
 
             // Output DNN layer
             var outTimesParams = new Parameter(new int[] { numOutputClasses, 1, 1, cMap3 }, DataType.Float,

@@ -9,6 +9,10 @@ namespace CNTK.CSTrainingExamples
     /// </summary>
     public class LSTMSequenceClassifier
     {
+        /// <summary>
+        /// test execution folder is: CNTK/x64/BuildFolder
+        /// data folder is: CNTK/Tests/EndToEndTests/Text/SequenceClassification/Data
+        /// </summary>
         public static string DataFolder = "../../Tests/EndToEndTests/Text/SequenceClassification/Data";
 
         public static void Train(DeviceDescriptor device, bool useSparseLabels)
@@ -41,32 +45,31 @@ namespace CNTK.CSTrainingExamples
                 Learner.MomentumSGDLearner(classifierOutput.Parameters(), learningRatePerSample, momentumTimeConstant, /*unitGainMomentum = */true)  };
             var trainer = Trainer.CreateTrainer(classifierOutput, trainingLoss, prediction, parameterLearners);
 
+            var minibatchSource = MinibatchSource.TextFormatMinibatchSource(
+                Path.Combine(DataFolder, "Train.ctf"), streamConfigurations,
+                MinibatchSource.InfinitelyRepeat, true);
+            var featureStreamInfo = minibatchSource.StreamInfo(featuresName);
+            var labelStreamInfo = minibatchSource.StreamInfo(labelsName);
+
+            const uint minibatchSize = 200;
             int outputFrequencyInMinibatches = 20;
-            int numEpochs = 50;
-            for (int epoch = 0; epoch < numEpochs; epoch++)
+            int miniBatchCount = 0;
+            int numEpochs = 5;
+            while (numEpochs > 0)
             {
-                const uint minibatchSize = 200;
+                var minibatchData = minibatchSource.GetNextMinibatch(minibatchSize, device);
 
-                var minibatchSource = MinibatchSource.TextFormatMinibatchSource(
-                    Path.Combine(DataFolder, "Train.ctf"), streamConfigurations,
-                    MinibatchSource.FullDataSweep, true);
-                var featureStreamInfo = minibatchSource.StreamInfo(featuresName);
-                var labelStreamInfo = minibatchSource.StreamInfo(labelsName);
-
-                for (int i = 0; true; i++)
+                var arguments = new Dictionary<Variable, MinibatchData>
                 {
-                    var minibatchData = minibatchSource.GetNextMinibatch(minibatchSize, device);
-                    if (minibatchData.empty())
-                        break;
+                    { features, minibatchData[featureStreamInfo] },
+                    { labels, minibatchData[labelStreamInfo] }
+                };
 
-                    var arguments = new Dictionary<Variable, MinibatchData>
-                    {
-                        { features, minibatchData[featureStreamInfo] },
-                        { labels, minibatchData[labelStreamInfo] }
-                    };
-
-                    trainer.TrainMinibatch(arguments, device);
-                    TestHelper.PrintTrainingProgress(trainer, i, outputFrequencyInMinibatches);
+                trainer.TrainMinibatch(arguments, device);
+                TestHelper.PrintTrainingProgress(trainer, miniBatchCount++, outputFrequencyInMinibatches);
+                if (TestHelper.MiniBatchDataIsSweepEnd(minibatchData.Values))
+                {
+                    numEpochs--;
                 }
             }
         }

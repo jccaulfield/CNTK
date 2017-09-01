@@ -61,8 +61,8 @@ namespace CNTK.CSTrainingExamples
             var timesFunction = CNTKLib.Times(timesParam, input, "times");
 
             int[] s2 = { outputDim };
-            var plusParam = new Parameter((NDShape)s2, 0.0f, device, "plusParam");
-            return CNTKLib.Plus(plusParam, new Variable(timesFunction), outputName);
+            var plusParam = new Parameter(s2, 0.0f, device, "plusParam");
+            return CNTKLib.Plus(plusParam, timesFunction, outputName);
         }
 
         public static float ValidateModelWithMinibatchSource(
@@ -151,13 +151,18 @@ namespace CNTK.CSTrainingExamples
             }
         }
 
+        public static bool MiniBatchDataIsSweepEnd(ICollection<MinibatchData> minibatchValues)
+        {
+            return minibatchValues.Any(a => a.sweepEnd);
+        }
+
         public static void PrintTrainingProgress(Trainer trainer, int minibatchIdx, int outputFrequencyInMinibatches)
         {
             if ((minibatchIdx % outputFrequencyInMinibatches) == 0 && trainer.PreviousMinibatchSampleCount() != 0)
             {
-                double trainLossValue = trainer.PreviousMinibatchLossAverage();
-                double evaluationValue = trainer.PreviousMinibatchEvaluationAverage();
-                Console.WriteLine($"Minibatch: {minibatchIdx} CrossEntropy loss = {trainLossValue}, Evaluation criterion = {evaluationValue}");
+                float trainLossValue = (float)trainer.PreviousMinibatchLossAverage();
+                float evaluationValue = (float)trainer.PreviousMinibatchEvaluationAverage();
+                Console.WriteLine($"Minibatch: {minibatchIdx} CrossEntropyLoss = {trainLossValue}, EvaluationCriterion = {evaluationValue}");
             }
         }
 
