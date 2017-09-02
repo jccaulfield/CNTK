@@ -43,6 +43,8 @@ namespace CNTK.CSTrainingExamples
             int flowerModelNumClasses = 102;
 
             string flowerModelFile = Path.Combine(CurrentFolder, "FlowersTransferLearning.model");
+
+            // If the model exists and it is not set to force retrain, validate the model and return.
             if (File.Exists(flowerModelFile) && !forceReTrain)
             {
                 ValidateModelWithMinibatchSource(flowerModelFile, flowersValidationMap,
@@ -50,6 +52,7 @@ namespace CNTK.CSTrainingExamples
                 return;
             }
 
+            // prepare training data
             MinibatchSource minibatchSource = CreateMinibatchSource(flowersTrainingMap,
                 imageDims, flowerModelNumClasses);
             var featureStreamInfo = minibatchSource.StreamInfo("image");
@@ -59,10 +62,12 @@ namespace CNTK.CSTrainingExamples
             Variable imageInput, labelInput;
             Function trainingLoss, predictionError;
 
+            // create a transfer model
             Function transferLearningModel = CreateTransferLearningModel(BaseResnetModelFile, featureNodeName,
                 predictionNodeName, lastHiddenNodeName, flowerModelNumClasses, device,
                 out imageInput, out labelInput, out trainingLoss, out predictionError);
 
+            // prepare for training
             int numMinibatches = 100;
             int minibatchbSize = 50;
             float learningRatePerMinibatch = 0.2F;
@@ -79,6 +84,7 @@ namespace CNTK.CSTrainingExamples
                 additionalLearningOptions)};
             var trainer = Trainer.CreateTrainer(transferLearningModel, trainingLoss, predictionError, parameterLearners);
 
+            // train the model
             int outputFrequencyInMinibatches = 1;
             for (int minibatchCount = 0; minibatchCount < numMinibatches; ++minibatchCount)
             {
@@ -91,8 +97,10 @@ namespace CNTK.CSTrainingExamples
                 TestHelper.PrintTrainingProgress(trainer, minibatchCount, outputFrequencyInMinibatches);
             }
 
+            // save the model
             transferLearningModel.Save(flowerModelFile);
 
+            // validate the trained model
             ValidateModelWithMinibatchSource(flowerModelFile, flowersValidationMap,
                 imageDims, flowerModelNumClasses, device);
         }
@@ -112,10 +120,10 @@ namespace CNTK.CSTrainingExamples
         {
             string animalDataFolder = Path.Combine(ExampleImageFoler, "Animals");
             string[] animals = new string[] { "Sheep", "Wolf" };
-
-            string animalsModelFile = Path.Combine(CurrentFolder, "AnimalsTransferLearning.model");
             int animalModelNumClasses = 2;
+            string animalsModelFile = Path.Combine(CurrentFolder, "AnimalsTransferLearning.model");
 
+            // If the model exists and it is not set to force retrain, validate the model and return.
             if (File.Exists(animalsModelFile) && !forceRetrain)
             {
                 ValidateModelWithoutMinibatchSource(animalsModelFile, Path.Combine(animalDataFolder, "Test"), animals,
@@ -126,6 +134,7 @@ namespace CNTK.CSTrainingExamples
             List<Tuple<string, int, float[]>> trainingDataMap =
                 PrepareTrainingDataFromSubfolders(Path.Combine(animalDataFolder, "Train"), animals, imageDims);
 
+            // prepare the transfer model
             string predictionNodeName = "prediction";
             Variable imageInput, labelInput;
             Function trainingLoss, predictionError;
@@ -133,6 +142,7 @@ namespace CNTK.CSTrainingExamples
                 lastHiddenNodeName, animalModelNumClasses, device,
                 out imageInput, out labelInput, out trainingLoss, out predictionError);
 
+            // prepare for training
             int numMinibatches = 5;
             float learningRatePerMinibatch = 0.2F;
             float learningmomentumPerMinibatch = 0.9F;
@@ -148,6 +158,7 @@ namespace CNTK.CSTrainingExamples
                     additionalLearningOptions)};
             var trainer = Trainer.CreateTrainer(transferLearningModel, trainingLoss, predictionError, parameterLearners);
 
+            // train the model
             for (int minibatchCount = 0; minibatchCount < numMinibatches; ++minibatchCount)
             {
                 Value imageBatch, labelBatch;
@@ -161,6 +172,8 @@ namespace CNTK.CSTrainingExamples
                     TestHelper.PrintTrainingProgress(trainer, minibatchCount, 1);
                 }
             }
+
+            // save the trained model
             transferLearningModel.Save(animalsModelFile);
 
             // done with training, continue with validation

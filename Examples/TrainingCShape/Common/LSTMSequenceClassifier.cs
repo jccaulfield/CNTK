@@ -5,17 +5,21 @@ using System.IO;
 namespace CNTK.CSTrainingExamples
 {
     /// <summary>
-    /// this class shows hot to build and train a recurrent neural network from ground up in C#. 
+    /// This class shows how to build a recurrent neural network model from ground up and train the model. 
     /// </summary>
     public class LSTMSequenceClassifier
     {
         /// <summary>
-        /// test execution folder is: CNTK/x64/BuildFolder
-        /// data folder is: CNTK/Tests/EndToEndTests/Text/SequenceClassification/Data
+        /// Execution folder is: CNTK/x64/BuildFolder
+        /// Data folder is: CNTK/Tests/EndToEndTests/Text/SequenceClassification/Data
         /// </summary>
         public static string DataFolder = "../../Tests/EndToEndTests/Text/SequenceClassification/Data";
 
-        public static void Train(DeviceDescriptor device, bool useSparseLabels)
+        /// <summary>
+        /// Build and train a RNN model.
+        /// </summary>
+        /// <param name="device">CPU or GPU device to train and run the model</param>
+        public static void Train(DeviceDescriptor device)
         {
             const int inputDim = 2000;
             const int cellDim = 25;
@@ -23,35 +27,36 @@ namespace CNTK.CSTrainingExamples
             const int embeddingDim = 50;
             const int numOutputClasses = 5;
 
+            // build the model
             var featuresName = "features";
             var features = Variable.InputVariable(new int[] { inputDim }, DataType.Float, featuresName, null, true /*isSparse*/);
-            var classifierOutput = LSTMSequenceClassifierNet(features, numOutputClasses, embeddingDim, hiddenDim, cellDim, device, "classifierOutput");
-
             var labelsName = "labels";
             var labels = Variable.InputVariable(new int[] { numOutputClasses }, DataType.Float, labelsName,
-                new List<Axis>() { Axis.DefaultBatchAxis() }, useSparseLabels);
+                new List<Axis>() { Axis.DefaultBatchAxis() }, true);
+
+            var classifierOutput = LSTMSequenceClassifierNet(features, numOutputClasses, embeddingDim, hiddenDim, cellDim, device, "classifierOutput");
             Function trainingLoss = CNTKLib.CrossEntropyWithSoftmax(classifierOutput, labels, "lossFunction");
             Function prediction = CNTKLib.ClassificationError(classifierOutput, labels, "classificationError");
 
+            // prepare training data
             IList<StreamConfiguration> streamConfigurations = new StreamConfiguration[]
-                { new StreamConfiguration(featuresName, inputDim, true, "x"), new StreamConfiguration(labelsName, numOutputClasses, false, "y") };
-
-            TrainingParameterScheduleDouble learningRatePerSample = new TrainingParameterScheduleDouble(
-                0.0005, TrainingParameterScheduleDouble.UnitType.Sample);
-
-            MomentumAsTimeConstantScheduleCS momentumTimeConstant = new MomentumAsTimeConstantScheduleCS(256);
-
-            IList<Learner> parameterLearners = new List<Learner>() {
-                Learner.MomentumSGDLearner(classifierOutput.Parameters(), learningRatePerSample, momentumTimeConstant, /*unitGainMomentum = */true)  };
-            var trainer = Trainer.CreateTrainer(classifierOutput, trainingLoss, prediction, parameterLearners);
-
+            { new StreamConfiguration(featuresName, inputDim, true, "x"), new StreamConfiguration(labelsName, numOutputClasses, false, "y") };
             var minibatchSource = MinibatchSource.TextFormatMinibatchSource(
                 Path.Combine(DataFolder, "Train.ctf"), streamConfigurations,
                 MinibatchSource.InfinitelyRepeat, true);
             var featureStreamInfo = minibatchSource.StreamInfo(featuresName);
             var labelStreamInfo = minibatchSource.StreamInfo(labelsName);
 
-            const uint minibatchSize = 200;
+            // prepare for training
+            TrainingParameterScheduleDouble learningRatePerSample = new TrainingParameterScheduleDouble(
+                0.0005, TrainingParameterScheduleDouble.UnitType.Sample);
+            MomentumAsTimeConstantScheduleCS momentumTimeConstant = new MomentumAsTimeConstantScheduleCS(256);
+            IList<Learner> parameterLearners = new List<Learner>() {
+                Learner.MomentumSGDLearner(classifierOutput.Parameters(), learningRatePerSample, momentumTimeConstant, /*unitGainMomentum = */true)  };
+            var trainer = Trainer.CreateTrainer(classifierOutput, trainingLoss, prediction, parameterLearners);
+
+            // train the model
+            uint minibatchSize = 200;
             int outputFrequencyInMinibatches = 20;
             int miniBatchCount = 0;
             int numEpochs = 5;
@@ -67,6 +72,11 @@ namespace CNTK.CSTrainingExamples
 
                 trainer.TrainMinibatch(arguments, device);
                 TestHelper.PrintTrainingProgress(trainer, miniBatchCount++, outputFrequencyInMinibatches);
+
+                // Because minibatchSource is created with MinibatchSource.InfinitelyRepeat, 
+                // batching will not end. Each time minibatchSource completes an sweep (epoch),
+                // the last minibatch data will be marked as end of a sweep. We use this flag
+                // to count number of epochs.
                 if (TestHelper.MiniBatchDataIsSweepEnd(minibatchData.Values))
                 {
                     numEpochs--;
@@ -106,8 +116,6 @@ namespace CNTK.CSTrainingExamples
             bool isFloatType = typeof(ElementType).Equals(typeof(float));
             DataType dataType = isFloatType ? DataType.Float : DataType.Double;
 
-            // new Parameter(new NDShape(new uint[] { 1 }), (ElementType)(object)0.0, device, "");
-            // TODO, how to use ElementType?
             Func<int, Parameter> createBiasParam;
             if (isFloatType)
                 createBiasParam = (dim) => new Parameter(new int[] { dim }, 0.01f, device, "");
@@ -185,6 +193,18 @@ namespace CNTK.CSTrainingExamples
             return CNTKLib.Times(embeddingParameters, input);
         }
 
+        /// <summary>
+        /// Build a one direction recurrent neural network (RNN) with long-short-term-memory (LSTM) cells.
+        /// http://colah.github.io/posts/2015-08-Understanding-LSTMs/
+        /// </summary>
+        /// <param name="input">the input variable</param>
+        /// <param name="numOutputClasses">number of output classes</param>
+        /// <param name="embeddingDim">dimension of the embedding layer</param>
+        /// <param name="LSTMDim">LSTM output dimension</param>
+        /// <param name="cellDim">cell dimension</param>
+        /// <param name="device">CPU or GPU device to run the model</param>
+        /// <param name="outputName">name of the model output</param>
+        /// <returns>the RNN model</returns>
         static Function LSTMSequenceClassifierNet(Variable input, int numOutputClasses, int embeddingDim, int LSTMDim, int cellDim, DeviceDescriptor device, 
             string outputName)
         {

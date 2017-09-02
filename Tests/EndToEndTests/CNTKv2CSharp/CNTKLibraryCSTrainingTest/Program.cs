@@ -55,7 +55,7 @@ namespace CNTK.CNTKLibraryCSTrainingTest
                     case "LSTMSequenceClassifierTest":
                         LSTMSequenceClassifier.DataFolder = "../../../Text/SequenceClassification/Data";
                         Console.WriteLine($"======== running LSTMSequenceClassifier.Train using {device.Type} ========");
-                        LSTMSequenceClassifier.Train(device, true);
+                        LSTMSequenceClassifier.Train(device);
                         break;
                     case "MNISTClassifierTest":
                         MNISTClassifier.ImageDataFolder = "../../../Image/Data/";
@@ -121,7 +121,7 @@ namespace CNTK.CNTKLibraryCSTrainingTest
                 TransferLearning.TrainAndEvaluateWithAnimalData(device, true);
             }
             Console.WriteLine($"======== running LSTMSequenceClassifier.Train using {device.Type} ========");
-            LSTMSequenceClassifier.Train(device, true);
+            LSTMSequenceClassifier.Train(device);
         }
     }
 }

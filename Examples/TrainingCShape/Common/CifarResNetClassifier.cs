@@ -18,51 +18,63 @@ namespace CNTK.CSTrainingExamples
         /// </summary>
         public static string CifarDataFolder = "../../Examples/Image/DataSets/CIFAR-10";
 
-        public static uint NumSweeps = 1;
+        /// <summary>
+        /// number of epoches for training. 
+        /// </summary>
+        public static uint MaxEpochs = 1;
 
-        static readonly int[] imageDim = {32, 32, 3};
-        static readonly int numClasses = 10;
+        private static readonly int[] imageDim = {32, 32, 3};
+        private static readonly int numClasses = 10;
 
+        /// <summary>
+        /// Train and evaluate an image classifier with CIFAR-10 data. 
+        /// The classification model is saved after training.
+        /// For repeated runs, the caller may choose whether to retrain a model or 
+        /// just validate an existing one.
+        /// </summary>
+        /// <param name="device">CPU or GPU device to run</param>
+        /// <param name="forceRetrain">whether to override an existing model.
+        /// if true, any existing model will be overridden and the new one evaluated. 
+        /// if false and there is an existing model, the existing model is evaluated.</param>
         public static void TrainAndEvaluate(DeviceDescriptor device, bool forceRetrain)
         {
             string modelFile = "Cifar10Rest.model";
+
+            // If a model already exists and not set to force retrain, validate the model and return.
             if (File.Exists(modelFile) && !forceRetrain)
             {
-                MinibatchSource testMinibatchSourceForExistingModel = CreateMinibatchSource(
-                    Path.Combine(CifarDataFolder, "test_map.txt"),
-                    Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, 1);
-
-                TestHelper.ValidateModelWithMinibatchSource(modelFile, testMinibatchSourceForExistingModel,
-                    imageDim, numClasses, "features", "labels", "classifierOutput", device);
+                ValidateModel(device, modelFile);
                 return;
             }
 
+            // prepare training data
             var minibatchSource = CreateMinibatchSource(Path.Combine(CifarDataFolder, "train_map.txt"),
-                Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, NumSweeps);
+                Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, MaxEpochs);
             var imageStreamInfo = minibatchSource.StreamInfo("features");
             var labelStreamInfo = minibatchSource.StreamInfo("labels");
 
-            var inputImageShape = imageStreamInfo.m_sampleLayout;
-            int numOutputClasses = (int)(labelStreamInfo.m_sampleLayout[0]);
+            // build a model
+            var imageInput = CNTKLib.InputVariable(imageDim, imageStreamInfo.m_elementType, "Images");
+            var labelsVar = CNTKLib.InputVariable(new int[] { numClasses }, labelStreamInfo.m_elementType, "Labels");
+            var classifierOutput = ResNetClassifier(imageInput, numClasses, device, "classifierOutput");
 
-            var imageInputName = "Images";
-            var imageInput = CNTKLib.InputVariable(inputImageShape, imageStreamInfo.m_elementType, imageInputName);
-            var classifierOutput = ResNetClassifier(imageInput, numOutputClasses, device, "classifierOutput");
+            // prepare for training
+            var trainingLoss = CNTKLib.CrossEntropyWithSoftmax(classifierOutput, labelsVar, "lossFunction");
+            var prediction = CNTKLib.ClassificationError(classifierOutput, labelsVar, 5, "predictionError");
 
-            var labelsInputName = "Labels";
-            var labelsVar = CNTKLib.InputVariable(new int[] { numOutputClasses }, labelStreamInfo.m_elementType, labelsInputName);
-            var trainingLoss = CNTKLib.CrossEntropyWithSoftmax(new Variable(classifierOutput), labelsVar, "lossFunction");
-            var prediction = CNTKLib.ClassificationError(new Variable(classifierOutput), labelsVar, 5, "predictionError");
-
-            TrainingParameterPerSampleScheduleDouble learningRatePerSample = new TrainingParameterPerSampleScheduleDouble(0.0078125);
+            var learningRatePerSample = new TrainingParameterPerSampleScheduleDouble(0.0078125);
             var trainer = Trainer.CreateTrainer(classifierOutput, trainingLoss, prediction,
                 new List<Learner> { Learner.SGDLearner(classifierOutput.Parameters(), learningRatePerSample) });
 
             uint minibatchSize = 64;
             int outputFrequencyInMinibatches = 20, miniBatchCount = 0;
+
+            // Feed data to the trainer for number of epochs. 
             while (true)
             {
                 var minibatchData = minibatchSource.GetNextMinibatch(minibatchSize, device);
+
+                // Stop training once max epochs is reached.
                 if (minibatchData.empty())
                 {
                     break;
@@ -73,11 +85,18 @@ namespace CNTK.CSTrainingExamples
                 TestHelper.PrintTrainingProgress(trainer, miniBatchCount++, outputFrequencyInMinibatches);
             }
 
-            var imageClassifier = Function.Combine(new List<Variable>() { trainingLoss, prediction, classifierOutput}, "ImageClassifier");
+            // save the model
+            var imageClassifier = Function.Combine(new List<Variable>() { trainingLoss, prediction, classifierOutput }, "ImageClassifier");
             imageClassifier.Save(modelFile);
 
+            // validate the model
+            ValidateModel(device, modelFile);
+        }
+
+        private static void ValidateModel(DeviceDescriptor device, string modelFile)
+        {
             MinibatchSource testMinibatchSource = CreateMinibatchSource(
-                Path.Combine(CifarDataFolder, "test_map.txt"), 
+                Path.Combine(CifarDataFolder, "test_map.txt"),
                 Path.Combine(CifarDataFolder, "CIFAR-10_mean.xml"), imageDim, numClasses, 1);
             TestHelper.ValidateModelWithMinibatchSource(modelFile, testMinibatchSource,
                 imageDim, numClasses, "features", "labels", "classifierOutput", device);
@@ -163,6 +182,15 @@ namespace CNTK.CSTrainingExamples
             return new Constant(projectionMap);
         }
 
+        /// <summary>
+        /// Build a Resnet for image classification. 
+        /// https://arxiv.org/abs/1512.03385
+        /// </summary>
+        /// <param name="input">input variable for image data</param>
+        /// <param name="numOutputClasses">number of outout classes</param>
+        /// <param name="device">CPU or GPU device to run</param>
+        /// <param name="outputName">name of the classifier</param>
+        /// <returns></returns>
         private static Function ResNetClassifier(Variable input, int numOutputClasses, DeviceDescriptor device, string outputName)
         {
             double convWScale = 7.07;
